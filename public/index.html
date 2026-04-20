@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Rifa 🎟</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, sans-serif; background: #f5f5f5; color: #111; padding: 1rem; }
+    h1 { font-size: 20px; font-weight: 600; margin-bottom: 8px; }
+    .stats { display: flex; gap: 8px; margin-bottom: 1rem; flex-wrap: wrap; }
+    .stat { padding: 5px 14px; border-radius: 20px; font-size: 13px; font-weight: 500; }
+    .stat-libre { background: #d1fae5; color: #065f46; }
+    .stat-vendido { background: #fee2e2; color: #991b1b; }
+    .grid { display: grid; grid-template-columns: repeat(10, 1fr); gap: 4px; }
+    @media (max-width: 420px) { .grid { grid-template-columns: repeat(5, 1fr); gap: 6px; } }
+    @media (min-width: 421px) and (max-width: 560px) { .grid { grid-template-columns: repeat(8, 1fr); } }
+    .num {
+      aspect-ratio: 1; display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      border-radius: 8px; cursor: pointer;
+      border: 1.5px solid #d1d5db; background: white;
+      font-size: 13px; font-weight: 600; transition: all 0.12s;
+      user-select: none; -webkit-tap-highlight-color: transparent; touch-action: manipulation;
+    }
+    .num:active { transform: scale(0.92); }
+    .num:hover { border-color: #6366f1; background: #eef2ff; }
+    .num.vendido { background: #fee2e2; border-color: #fca5a5; color: #991b1b; }
+    .num.vendido:hover { background: #fecaca; }
+    .num .buyer { font-size: 6px; font-weight: 400; color: #b91c1c; max-width: 95%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: center; line-height: 1.2; margin-top: 1px; }
+    .overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 10; align-items: flex-end; justify-content: center; }
+    .overlay.open { display: flex; }
+    .modal { background: white; border-radius: 20px 20px 0 0; padding: 1.25rem 1.25rem 2rem; width: 100%; max-width: 480px; }
+    @media (min-width: 480px) { .overlay { align-items: center; } .modal { border-radius: 16px; } }
+    .drag-bar { width: 40px; height: 4px; background: #e5e7eb; border-radius: 4px; margin: 0 auto 1.25rem; }
+    .modal h2 { font-size: 17px; margin-bottom: 4px; }
+    .modal p { font-size: 14px; color: #666; margin-bottom: 14px; }
+    .modal input { width: 100%; padding: 12px 14px; border: 1.5px solid #d1d5db; border-radius: 10px; font-size: 16px; margin-bottom: 10px; outline: none; }
+    .modal input:focus { border-color: #6366f1; }
+    .btns { display: flex; gap: 8px; }
+    .btn { flex: 1; padding: 12px; border-radius: 10px; font-size: 15px; font-weight: 500; cursor: pointer; border: none; -webkit-tap-highlight-color: transparent; }
+    .btn-ok { background: #6366f1; color: white; }
+    .btn-ok:active { background: #4f46e5; }
+    .btn-cancel { background: #f3f4f6; color: #374151; }
+    .btn-cancel:active { background: #e5e7eb; }
+    .btn-liberar { width: 100%; margin-top: 10px; padding: 11px; background: #fee2e2; color: #991b1b; border: none; border-radius: 10px; font-size: 14px; cursor: pointer; }
+    .btn-liberar:active { background: #fecaca; }
+    .error { color: #dc2626; font-size: 13px; margin-bottom: 8px; display: none; }
+    .sync { font-size: 11px; color: #9ca3af; margin-top: 10px; text-align: center; }
+  </style>
+</head>
+<body>
+
+<h1>🎟 Rifa — 100 números</h1>
+<div class="stats">
+  <span class="stat stat-libre">Libres: <b id="cnt-libre">100</b></span>
+  <span class="stat stat-vendido">Vendidos: <b id="cnt-vendido">0</b></span>
+</div>
+<div class="grid" id="grid"></div>
+<div class="sync" id="sync">Cargando...</div>
+
+<div class="overlay" id="overlay">
+  <div class="modal">
+    <div class="drag-bar"></div>
+    <h2>Número <span id="modal-num" style="color:#6366f1"></span></h2>
+    <p id="modal-desc"></p>
+    <div class="error" id="modal-error"></div>
+    <input type="text" id="modal-input" placeholder="Nombre del comprador" maxlength="40" autocomplete="off" />
+    <div class="btns">
+      <button class="btn btn-cancel" onclick="cerrar()">Cancelar</button>
+      <button class="btn btn-ok" id="btn-ok" onclick="confirmar()">Confirmar</button>
+    </div>
+    <button class="btn-liberar" id="btn-liberar" onclick="liberar()">Liberar número</button>
+  </div>
+</div>
+
+<script>
+  let datos = {};
+  let numSeleccionado = null;
+
+  async function cargar() {
+    try {
+      const r = await fetch('/api/numeros');
+      datos = await r.json();
+      renderizar();
+      document.getElementById('sync').textContent = 'Actualizado: ' + new Date().toLocaleTimeString('es-CL');
+    } catch(e) {
+      document.getElementById('sync').textContent = 'Error de conexión, reintentando...';
+    }
+  }
+
+  function renderizar() {
+    const grid = document.getElementById('grid');
+    grid.innerHTML = '';
+    let libres = 0, vendidos = 0;
+    for (let i = 1; i <= 100; i++) {
+      const div = document.createElement('div');
+      const esVendido = !!datos[i];
+      div.className = 'num' + (esVendido ? ' vendido' : '');
+      div.innerHTML = `<span>${i}</span>` + (esVendido ? `<span class="buyer">${datos[i]}</span>` : '');
+      div.onclick = () => abrirModal(i);
+      grid.appendChild(div);
+      esVendido ? vendidos++ : libres++;
+    }
+    document.getElementById('cnt-libre').textContent = libres;
+    document.getElementById('cnt-vendido').textContent = vendidos;
+  }
+
+  function abrirModal(n) {
+    numSeleccionado = n;
+    const esVendido = !!datos[n];
+    document.getElementById('modal-num').textContent = n;
+    document.getElementById('modal-error').style.display = 'none';
+    const input = document.getElementById('modal-input');
+    if (esVendido) {
+      document.getElementById('modal-desc').textContent = 'Vendido a: ' + datos[n];
+      input.style.display = 'none';
+      document.getElementById('btn-ok').style.display = 'none';
+      document.getElementById('btn-liberar').style.display = 'block';
+    } else {
+      document.getElementById('modal-desc').textContent = 'Ingresá el nombre del comprador';
+      input.value = '';
+      input.style.display = 'block';
+      document.getElementById('btn-ok').style.display = 'block';
+      document.getElementById('btn-liberar').style.display = 'none';
+      setTimeout(() => input.focus(), 100);
+    }
+    document.getElementById('overlay').classList.add('open');
+  }
+
+  function cerrar() {
+    document.getElementById('overlay').classList.remove('open');
+    numSeleccionado = null;
+  }
+
+  async function confirmar() {
+    const nombre = document.getElementById('modal-input').value.trim();
+    if (!nombre) {
+      const el = document.getElementById('modal-error');
+      el.textContent = 'Ingresá un nombre';
+      el.style.display = 'block';
+      return;
+    }
+    document.getElementById('btn-ok').textContent = '...';
+    const r = await fetch(`/api/numeros/${numSeleccionado}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ nombre })
+    });
+    document.getElementById('btn-ok').textContent = 'Confirmar';
+    if (r.status === 409) {
+      const el = document.getElementById('modal-error');
+      el.textContent = '¡Ese número ya fue tomado! Recargá la página.';
+      el.style.display = 'block';
+      return;
+    }
+    cerrar();
+    cargar();
+  }
+
+  async function liberar() {
+    if (!confirm('¿Liberar el número ' + numSeleccionado + '?')) return;
+    await fetch(`/api/numeros/${numSeleccionado}`, { method: 'DELETE' });
+    cerrar();
+    cargar();
+  }
+
+  document.getElementById('modal-input').addEventListener('keydown', e => { if (e.key === 'Enter') confirmar(); });
+  document.getElementById('overlay').addEventListener('click', e => { if (e.target === document.getElementById('overlay')) cerrar(); });
+
+  cargar();
+  setInterval(cargar, 10000);
+</script>
+</body>
+</html>

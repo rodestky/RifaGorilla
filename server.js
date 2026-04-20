@@ -1,4 +1,3 @@
-require('dotenv').config();
 const express = require('express');
 const { Pool } = require('pg');
 const path = require('path');
@@ -13,6 +12,10 @@ const pool = new Pool({
 
 app.use(express.json());
 app.use(express.static('public'));
+
+app.get('/publico', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'publico.html'));
+});
 
 async function init() {
   await pool.query(`

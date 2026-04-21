@@ -36,7 +36,7 @@ app.get('/api/numeros', async (req, res) => {
 app.post('/api/numeros/:num', async (req, res) => {
   const num = parseInt(req.params.num);
   const { nombre } = req.body;
-  if (!nombre || num < 1 || num > 100)
+  if (!nombre || num < 1 || num > 200)
     return res.status(400).json({ error: 'Datos inválidos' });
   try {
     await pool.query(

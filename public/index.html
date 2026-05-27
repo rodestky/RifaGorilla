@@ -93,7 +93,7 @@
     const grid = document.getElementById('grid');
     grid.innerHTML = '';
     let libres = 0, vendidos = 0;
-    for (let i = 1; i <= 200; i++) {
+    for (let i = 1; i <= 250; i++) {
       const div = document.createElement('div');
       const esVendido = !!datos[i];
       div.className = 'num' + (esVendido ? ' vendido' : '');

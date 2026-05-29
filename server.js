@@ -36,6 +36,12 @@ app.get('/api/numeros', async (req, res) => {
 app.post('/api/numeros/:num', async (req, res) => {
   const num = parseInt(req.params.num);
   const { nombre } = req.body;
+  console.log({
+  num,
+  nombre,
+  body: req.body,
+  params: req.params
+});
   if (!nombre || num < 1 || num > 250)
     return res.status(400).json({ error: 'Datos inválidos' });
   try {

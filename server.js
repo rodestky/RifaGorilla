@@ -1,3 +1,4 @@
+require('dotenv').config();
 const express = require('express');
 const { Pool } = require('pg');
 const path = require('path');
@@ -42,7 +43,7 @@ app.post('/api/numeros/:num', async (req, res) => {
   body: req.body,
   params: req.params
 });
-  if (!nombre || num < 1 || num > 250)
+  if (!nombre || num < 1 || num > 100)
     return res.status(400).json({ error: 'Datos inválidos' });
   try {
     await pool.query(
